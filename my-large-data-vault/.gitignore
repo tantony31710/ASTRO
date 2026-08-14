@@ -19,4 +19,4 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
-.vscode/
+.vscode/.env

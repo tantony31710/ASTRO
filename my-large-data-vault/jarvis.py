@@ -15,6 +15,10 @@ Loop shape:
 
 Startup runs the same boot checks main.py does (disk check, scratch
 cleanup) so the assistant reports vault health as soon as it wakes up.
+
+Keys and config are loaded automatically from a `.env` file in this
+directory (see `.env.example`) — importing `src.utils.llm` triggers the
+load, so no manual env-var dance is needed.
 """
 from src.utils.storage import check_disk_space, cleanup_scratch_dir
 from src.utils.tools import handle_intent, is_exit_command

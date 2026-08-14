@@ -12,3 +12,4 @@ PyAudio>=0.2.14                # required by SpeechRecognition's Microphone()
 # LLM (Phase 3) — install whichever provider you're using.
 anthropic>=0.34.0
 # openai>=1.40.0
+python-dotenv>=1.0.0
