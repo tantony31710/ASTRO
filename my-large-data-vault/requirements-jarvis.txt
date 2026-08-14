@@ -10,6 +10,12 @@ pyttsx3>=2.90                  # TTS offline fallback
 PyAudio>=0.2.14                # required by SpeechRecognition's Microphone()
 
 # LLM (Phase 3) — install whichever provider you're using.
+# Uncomment the local line for Llama-3 (GGUF) inference; it's CPU-native.
 anthropic>=0.34.0
 # openai>=1.40.0
+# llama-cpp-python>=0.2.0
 python-dotenv>=1.0.0
+
+# Tray app + wake-word idle loop (Windows)
+pystray>=0.19.0
+Pillow>=10.0.0

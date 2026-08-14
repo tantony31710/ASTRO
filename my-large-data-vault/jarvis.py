@@ -20,6 +20,8 @@ Keys and config are loaded automatically from a `.env` file in this
 directory (see `.env.example`) — importing `src.utils.llm` triggers the
 load, so no manual env-var dance is needed.
 """
+import os
+
 from src.utils.storage import check_disk_space, cleanup_scratch_dir
 from src.utils.tools import handle_intent, is_exit_command
 from src.utils.llm import ask_llm
@@ -56,8 +58,28 @@ def main_loop():
         speak(response)
 
 
+def wake_loop():
+    """
+    Wake-word mode: JARVIS idles listening for "jarvis" (configurable via
+    JARVIS_WAKE_WORD), then speaks, takes a full command, answers, and
+    returns to ambient listening. Driven by voice.listen_loop() — see that
+    docstring for the guard's degradation policy.
+
+    Usage:
+        JARVIS_MODE=wake python jarvis.py      # wake-word mode
+        python jarvis.py                       # classic prompt mode
+    """
+    from src.utils.voice import listen_loop
+
+    speak(boot_check())
+    listen_loop(run_once)
+
+
 if __name__ == "__main__":
     try:
-        main_loop()
+        if os.environ.get("JARVIS_MODE", "").lower() == "wake":
+            wake_loop()
+        else:
+            main_loop()
     except KeyboardInterrupt:
         speak("Interrupted. Shutting down.")
