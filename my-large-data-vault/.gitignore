@@ -1,0 +1,22 @@
+# Ignore raw & heavy directories
+00_raw_data/
+01_processed_data/
+02_build_cache/
+03_backups_and_archives/
+
+# Binary & media extensions
+*.tar.gz
+*.zip
+*.mp4
+*.mov
+*.bin
+*.safetensors
+*.pt
+*.parquet
+
+# Python cache & OS files
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/

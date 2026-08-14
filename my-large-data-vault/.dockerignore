@@ -1,0 +1,7 @@
+00_raw_data/
+01_processed_data/
+02_build_cache/
+03_backups_and_archives/
+.git/
+.gitignore
+*.tmp
