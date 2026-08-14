@@ -31,7 +31,7 @@ ctk.set_default_color_theme("blue")
 VAULT = (Path(__file__).resolve().parent / "my-large-data-vault").as_posix()
 if not Path(VAULT).is_dir():
     # Fallback: search up to three directory levels for the vault folder.
-    # Useful when the shortcut or service points at a copy of gui_app.py.
+    # Useful when a shortcut or service points at a copy of gui_app.py.
     probe = Path(__file__).resolve().parent
     for _ in range(3):
         probe = probe.parent
@@ -43,8 +43,8 @@ for _p in (VAULT, str(Path(VAULT).parent)):
         sys.path.insert(0, _p)
 
 try:
-    from src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
-    from jarvis import run_once as astro_respond  # noqa: E402
+    from my_large_data_vault.src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
+    from my_large_data_vault.jarvis import run_once as astro_respond  # noqa: E402
 except ImportError:
     raise RuntimeError(
         "ASTRO desktop app: cannot find the vault modules. "
