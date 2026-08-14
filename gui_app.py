@@ -33,9 +33,9 @@ for _p in (VAULT, str(Path(VAULT).parent)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
+from my_large_data_vault.src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
 
-from jarvis import run_once as astro_respond  # noqa: E402
+from my_large_data_vault.jarvis import run_once as astro_respond  # noqa: E402
 
 import dotenv  # noqa: E402
 dotenv.load_dotenv(Path(VAULT) / ".env", override=False)
