@@ -19,3 +19,9 @@ python-dotenv>=1.0.0
 # Tray app + wake-word idle loop (Windows)
 pystray>=0.19.0
 Pillow>=10.0.0
+# Browser automation (the "Jarvis posts on Instagram" capability).
+# Optional — install when you want autonomous web actions:
+#   pip install playwright && playwright install chromium
+# playwright>=1.40.0
+# psutil is optional too (nicer system metrics in the HUD; fallbacks exist):
+# psutil>=5.9.0

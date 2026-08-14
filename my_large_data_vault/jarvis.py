@@ -25,6 +25,7 @@ import os
 from src.utils.storage import check_disk_space, cleanup_scratch_dir
 from src.utils.tools import handle_intent, is_exit_command
 from src.utils.llm import ask_llm
+from src.utils.memory import get_history_messages, record
 from src.utils.voice import listen, speak
 
 
@@ -37,11 +38,18 @@ def boot_check() -> str:
 
 
 def run_once(text: str) -> str:
-    """Processes a single utterance/command and returns the response text. No I/O side effects beyond the tool itself — used by both the loop and tests."""
+    """Processes a single utterance/command and returns the response text. No I/O side effects beyond the tool itself — used by both the loop and tests. Records every exchange to persistent conversation memory."""
+    record("you", text)
     intent = handle_intent(text)
     if intent["matched"]:
-        return intent["result"]
-    return ask_llm(text)
+        reply = intent["result"]
+        record("jarvis", reply)
+        return reply
+    # Memory-aware LLM call: recent turns prepended so JARVIS remembers context.
+    history = get_history_messages()
+    reply = ask_llm(text, history=history)
+    record("jarvis", reply)
+    return reply
 
 
 def main_loop():

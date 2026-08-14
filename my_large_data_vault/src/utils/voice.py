@@ -23,6 +23,11 @@ from pathlib import Path
 
 SCRATCH_DIR = Path("02_build_cache/temp_scratch")
 
+# Default TTS voice: a British male voice (the classic JARVIS sound).
+# Override via JARVIS_TTS_VOICE in .env — e.g. "en-US-GuyNeural" or any
+# edge-tts voice name (`edge-tts --list-voices` shows them all).
+TTS_VOICE = os.environ.get("JARVIS_TTS_VOICE", "en-GB-RyanNeural")
+
 
 def listen(prompt: str = "Listening...") -> str:
     """
@@ -107,7 +112,7 @@ def _speak_edge_tts(text: str) -> None:
     out_path = SCRATCH_DIR / f"tts_{int(time.time() * 1000)}.mp3"
 
     async def _gen():
-        communicate = edge_tts.Communicate(text, voice="en-US-GuyNeural")
+        communicate = edge_tts.Communicate(text, voice=TTS_VOICE)
         await communicate.save(str(out_path))
 
     asyncio.run(_gen())

@@ -50,7 +50,8 @@ LOCAL_BACKEND = ""        # JARVIS_LLM_BACKEND — "local" enables local inferen
 LOCAL_MODEL_PATH = ""     # JARVIS_LOCAL_MODEL — path to a Llama-3 GGUF file
 
 
-def _call_anthropic(prompt: str, api_key: str) -> str:
+def _call_anthropic(prompt: str, api_key: str, history: list = None) -> str:
+    history = history or []
     import anthropic
 
     client = anthropic.Anthropic(api_key=api_key)
@@ -58,12 +59,14 @@ def _call_anthropic(prompt: str, api_key: str) -> str:
         model="claude-sonnet-4-5",
         max_tokens=512,
         system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": m["role"], "content": m["content"]} for m in history]
+        + [{"role": "user", "content": prompt}],
     )
     return "".join(block.text for block in response.content if block.type == "text").strip()
 
 
-def _call_openai(prompt: str, api_key: str) -> str:
+def _call_openai(prompt: str, api_key: str, history: list = None) -> str:
+    history = history or []
     from openai import OpenAI
 
     client = OpenAI(api_key=api_key)
@@ -71,18 +74,22 @@ def _call_openai(prompt: str, api_key: str) -> str:
         model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
+        ]
+        + history
+        + [
             {"role": "user", "content": prompt},
         ],
     )
     return response.choices[0].message.content.strip()
 
 
-def _call_local_llama3(prompt: str, model_path: str) -> str:
+def _call_local_llama3(prompt: str, model_path: str, history: list = None) -> str:
     """
     Real local inference for a Llama-3 GGUF model via llama-cpp-python.
     CPU-native — no GPU, no CUDA toolchain needed. Kept behind
     JARVIS_LLM_BACKEND=local so the default dependency set stays light.
     """
+    history = history or []
     import llama_cpp
 
     llm = llama_cpp.Llama(
@@ -94,6 +101,9 @@ def _call_local_llama3(prompt: str, model_path: str) -> str:
     response = llm.create_chat_completion(
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
+        ]
+        + history
+        + [
             {"role": "user", "content": prompt},
         ],
         max_tokens=512,
@@ -139,43 +149,81 @@ def _local_fallback_message() -> str:
     )
 
 
-def ask_llm(prompt: str) -> str:
-    """Routes a prompt to whichever backend is available. Never raises — always returns text."""
+def ask_llm(prompt: str, history: list = None) -> str:
+    """Routes a prompt to whichever backend is available. Never raises — always returns text.
+    history (optional): recent chat turns as [{"role": "user"|"assistant", "content": ...}];
+    prepended before the new prompt so replies stay context-aware."""
+    history = history or []
     global LOCAL_BACKEND, LOCAL_MODEL_PATH
 
     # Re-read config on every call so `.env` edits take effect live.
     LOCAL_BACKEND = os.environ.get("JARVIS_LLM_BACKEND", "")
     LOCAL_MODEL_PATH = os.environ.get("JARVIS_LOCAL_MODEL", "")
 
-    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-    openai_key = os.environ.get("OPENAI_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+
+    # A key that exists but has no credits/quota should NOT lock the user
+    # out — detect the specific failure signatures and fall through to the
+    # local backend (if it is configured and usable). "credit balance is too
+    # low", "rate_limit", "insufficient_quota" are the common ones.
+    _API_FAILURE_SIGNATURES = (
+        "credit balance is too low",
+        "insufficient_quota",
+        "rate_limit",
+        "overloaded",
+    )
+
+    def _try_backend(call_fn):
+        try:
+            return call_fn()
+        except ImportError as e:
+            return ("backend_missing", f"package not installed: {e}")
+        except Exception as e:
+            err_text = str(e)
+            for sig in _API_FAILURE_SIGNATURES:
+                if sig in err_text.lower():
+                    return ("fallback", f"API unavailable ({sig}) — falling back to local.")
+            return ("error", err_text)
+
+    def _run_local():
+        if not LOCAL_MODEL_PATH:
+            return ("missing", _local_fallback_message())
+        if not Path(LOCAL_MODEL_PATH).is_file():
+            return ("missing", _local_fallback_message())
+        try:
+            return ("ok", _call_local_llama3(prompt, LOCAL_MODEL_PATH, history))
+        except ImportError:
+            return ("missing", "JARVIS_LLM_BACKEND=local but 'llama-cpp-python' isn't installed (pip install llama-cpp-python).")
+        except Exception as e:
+            return ("error", f"Local Llama-3 inference failed: {e}")
+
+    def _try_api_or_local(api_call_fn, key_label):
+        status, text = _try_backend(api_call_fn)
+        if status == "ok":
+            return text
+        if status == "fallback":
+            print(f"[LLM] {text}")
+            s, t = _run_local()
+            if s == "ok":
+                return t
+            return f"{text} Local backend isn't usable ({t}) — please add credits or configure JARVIS_LLM_BACKEND=local with a GGUF model in .env."
+        if status == "missing":
+            return (f"{key_label} is set but the {key_label.split('_')[0]} package isn't "
+                    f"installed ({text}). Set JARVIS_LLM_BACKEND=local with a GGUF model "
+                    "in .env to work without API keys.")
+        return f"API call failed: {text}"
 
     if anthropic_key:
-        try:
-            return _call_anthropic(prompt, anthropic_key)
-        except ImportError:
-            return "ANTHROPIC_API_KEY is set but the 'anthropic' package isn't installed (pip install anthropic)."
-        except Exception as e:
-            return f"Anthropic API call failed: {e}"
+        return _try_api_or_local(lambda: _call_anthropic(prompt, anthropic_key, history), "ANTHROPIC_API_KEY")
 
     if openai_key:
-        try:
-            return _call_openai(prompt, openai_key)
-        except ImportError:
-            return "OPENAI_API_KEY is set but the 'openai' package isn't installed (pip install openai)."
-        except Exception as e:
-            return f"OpenAI API call failed: {e}"
+        return _try_api_or_local(lambda: _call_openai(prompt, openai_key, history), "OPENAI_API_KEY")
 
     if LOCAL_BACKEND == "local":
-        if not LOCAL_MODEL_PATH:
-            return _local_fallback_message()
-        if not Path(LOCAL_MODEL_PATH).is_file():
-            return _local_fallback_message()
-        try:
-            return _call_local_llama3(prompt, LOCAL_MODEL_PATH)
-        except ImportError:
-            return "JARVIS_LLM_BACKEND=local but 'llama-cpp-python' isn't installed (pip install llama-cpp-python)."
-        except Exception as e:
-            return f"Local Llama-3 inference failed: {e}"
+        s, t = _run_local()
+        if s == "ok":
+            return t
+        return t  # already a plain-language hint
 
     return _local_fallback_message()

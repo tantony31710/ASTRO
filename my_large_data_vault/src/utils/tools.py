@@ -18,7 +18,9 @@ Design choices:
 import platform
 import subprocess
 import webbrowser
+from urllib.parse import quote
 from dataclasses import dataclass, field
+SEARCH_QUERY = ""  # trailing text after a matched keyword (e.g. search query)
 from typing import Callable, Optional
 
 from src.utils.storage import get_disk_usage, get_zone_sizes, cleanup_scratch_dir
@@ -90,6 +92,26 @@ def _tool_system_stats() -> str:
     return _tool_check_disk() + " " + _tool_zone_report()
 
 
+def _tool_search_google() -> str:
+    """Opens Google — the trailing query text is supplied by handle_intent
+    via SEARCH_QUERY (set per-call). Pure webbrowser, no extra deps."""
+    query = quote(SEARCH_QUERY or "jarvis assistant")
+    webbrowser.open(f"https://www.google.com/search?q={query}")
+    return "Opening Google search."
+
+
+def _tool_open_app(name: str = "") -> str:
+    """Open an application by keyword-nicknamed name ('notepad', 'calculator')."""
+    known = {
+        "notepad": "notepad.exe", "calculator": "calc.exe", "paint": "mspaint.exe",
+        "explorer": "explorer.exe", "task manager": "taskmgr.exe",
+        "word": "winword.exe", "excel": "excel.exe", "powerpoint": "powerpnt.exe",
+        "settings": "ms-settings:", "control panel": "control", "clock": "clock.exe",
+    }
+    app = known.get(name.lower().strip(), name)
+    return open_application(app)
+
+
 def open_application(app_name: str) -> str:
     """
     Best-effort local app launcher. Windows uses `start`, macOS uses `open`,
@@ -128,6 +150,16 @@ TOOL_REGISTRY: list = [
          "Combined disk + zone report."),
     Tool("open_dashboard", ["open dashboard", "open browser", "show dashboard"], _tool_open_browser,
          "Opens the vault dashboard in the default browser."),
+    Tool("open_notepad", ["open notepad", "launch notepad", "start notepad"], lambda: _tool_open_app("notepad"),
+         "Launches Windows Notepad."),
+    Tool("open_calc", ["open calculator", "launch calculator"], lambda: _tool_open_app("calculator"),
+         "Launches the Windows Calculator."),
+    Tool("search_google", ["search google", "google search", "search the web for"], _tool_search_google,
+         "Opens a Google search in the default browser with the trailing query text."),
+    Tool("open_task_manager", ["open task manager", "show running apps"], lambda: _tool_open_app("task manager"),
+         "Opens Windows Task Manager."),
+    Tool("open_settings", ["open settings", "windows settings"], lambda: _tool_open_app("settings"),
+         "Opens Windows Settings."),
 ]
 
 EXIT_KEYWORDS = ["shutdown", "exit", "quit", "go to sleep", "goodnight"]
@@ -148,6 +180,23 @@ def handle_intent(text: str) -> dict:
     lowered = text.lower().strip()
     if not lowered:
         return {"matched": False, "text": text}
+
+    # Allow keyword tools that need trailing text (e.g. a search query) to
+    # see the part of the command after their keyword match. Leading filler
+    # words ("for", "about") after the keyword are stripped.
+    global SEARCH_QUERY
+    SEARCH_QUERY = ""
+    _FILLER = ("for ", "about ", "on ")
+    for tool in TOOL_REGISTRY:
+        for kw in tool.keywords:
+            if kw in lowered:
+                tail = lowered.split(kw, 1)[1].strip()
+                for f in _FILLER:
+                    if tail.startswith(f):
+                        tail = tail[len(f):].strip()
+                if tail:
+                    SEARCH_QUERY = tail
+                break
 
     for tool in TOOL_REGISTRY:
         if any(kw in lowered for kw in tool.keywords):
