@@ -126,3 +126,103 @@ def _speak_pyttsx3(text: str) -> None:
     engine = pyttsx3.init()
     engine.say(text)
     engine.runAndWait()
+
+
+def detect_wake_word(
+    keyword: str = "jarvis",
+    threshold: float = 0.6,
+    timeout: float = 5.0,
+) -> bool:
+    """
+    Listens for a wake-word phrase (default "jarvis") in the microphone and
+    returns True when it hears it within `timeout` seconds. This is the
+    "ambient guard": speech_recognition in continuous-listen mode with
+    ``recognize_google`` (same STT backend as ``listen()``), but only the
+    transcript is checked for the keyword — no full command parsing happens
+    until the wake word fires, so background chatter is ignored.
+
+    Graceful degradation (same policy as ``listen``):
+      - no speech_recognition package        -> console prompt asking to type the wake word
+      - no microphone / audio backend error  -> console prompt
+      - Google STT can't match anything      -> returns False (keep waiting)
+
+    The wake word itself is matched case-insensitively as a substring with
+    basic phonetic tolerance for common misrecognitions (``jarvis`` may
+    arrive as ``jervis``, ``garvis``, ``jarvis sir`` …). Configure
+    ``JARVIS_WAKE_WORD`` and ``JARVIS_WAKE_THRESHOLD`` in .env to change
+    the keyword and looseness of the match.
+    """
+    import os
+    import re
+
+    keyword = (os.environ.get("JARVIS_WAKE_WORD") or keyword).strip().lower()
+    threshold = float(os.environ.get("JARVIS_WAKE_THRESHOLD", threshold))
+    tolerance = {
+        "jarvis": ["jervis", "garvis", "jarvis sir", "jeff"],
+    }.get(keyword, [])
+    patterns = [re.compile(r"\b" + re.escape(keyword) + r"\b", re.I)] + [
+        re.compile(r"\b" + re.escape(t) + r"\b", re.I) for t in tolerance
+    ]
+
+    try:
+        import speech_recognition as sr
+    except ImportError:
+        hit = input(f"[WAKE] voice deps not installed — type '{keyword}' to wake > ")
+        return any(p.search(hit or "") for p in patterns)
+
+    recognizer = sr.Recognizer()
+    deadline = time.time() + timeout
+    try:
+        with sr.Microphone() as source:
+            recognizer.adjust_for_ambient_noise(source, duration=0.4)
+            while time.time() < deadline:
+                remaining = max(0.5, deadline - time.time())
+                try:
+                    audio = recognizer.listen(source, timeout=remaining, phrase_time_limit=8)
+                except sr.WaitTimeoutError:
+                    continue
+                try:
+                    transcript = recognizer.recognize_google(audio).lower()
+                except sr.UnknownValueError:
+                    continue
+                if any(p.search(transcript) for p in patterns):
+                    return True
+                # Wake word not heard yet — keep listening until the deadline.
+                continue
+    except Exception as e:
+        print(f"[WAKE] mic unavailable ({e}), falling back to typed input.")
+        hit = input(f"[WAKE] type '{keyword}' to wake > ")
+        return any(p.search(hit or "") for p in patterns)
+
+    return False
+
+
+def listen_loop(callback):
+    """
+    Ambience loop: repeatedly wait for the wake word, then hand one full
+    ``listen()`` utterance to `callback(text)` and speak its return value.
+    This is the "Hey Jarvis"-style replacement for the prompt-driven
+    ``main_loop`` — no Enter key needed, ever.
+
+    The callback receives the transcribed command and must return the
+    response text (speak() happens here so run_once() stays side-effect-free).
+    Pass ``callback=None`` to use ``jarvis.run_once``.
+    """
+    from jarvis import run_once
+
+    callback = callback or run_once
+    from src.utils.tools import is_exit_command
+
+    speak("I'm awake. Say my name to get my attention.")
+    while True:
+        if not detect_wake_word():
+            continue
+        speak("I'm listening.")
+        text = listen()
+        if not text:
+            continue
+        if is_exit_command(text):
+            speak("Going to sleep.")
+            break
+        response = callback(text)
+        speak(response)
