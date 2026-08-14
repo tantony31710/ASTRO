@@ -102,3 +102,13 @@ export const getJobStatus = (jobId: string) =>
 export const getWeights = () => request<WeightSummary[]>("/models/weights");
 export const getWeightDetail = (filename: string) =>
   request<WeightDetail>(`/models/weights/${encodeURIComponent(filename)}`);
+
+// ---- assistant ----
+
+export interface ChatReply {
+  reply: string;
+  matched_tool: string | null;
+}
+
+export const sendChat = (message: string) =>
+  request<ChatReply>("/chat", { method: "POST", body: JSON.stringify({ message }) });

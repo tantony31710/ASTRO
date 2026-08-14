@@ -4,6 +4,7 @@ const links = [
   { to: "/", label: "Storage", icon: "01" },
   { to: "/media", label: "Media", icon: "02" },
   { to: "/models", label: "Weights", icon: "03" },
+  { to: "/chat", label: "Chat", icon: "04" },
 ];
 
 export default function Sidebar() {

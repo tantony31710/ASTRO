@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routers import storage as storage_router
 from api.routers import media as media_router
 from api.routers import models as models_router
+from api.routers import assistant as assistant_router
 
 app = FastAPI(
     title="ASTRO Vault API",
@@ -37,6 +38,7 @@ app.add_middleware(
 app.include_router(storage_router.router, prefix="/api/storage", tags=["storage"])
 app.include_router(media_router.router, prefix="/api/media", tags=["media"])
 app.include_router(models_router.router, prefix="/api/models", tags=["models"])
+app.include_router(assistant_router.router, prefix="/api", tags=["assistant"])
 
 
 @app.get("/api/health")

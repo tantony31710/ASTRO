@@ -1,0 +1,14 @@
+# Optional extras for JARVIS voice + LLM features.
+# Core vault pipelines (main.py) don't need any of these.
+
+# Voice (Phase 2) — install what you need; both directions fall back
+# to text if their package is missing.
+SpeechRecognition>=3.10.0     # STT (Google Web Speech backend)
+# openai-whisper               # STT local backend (uncomment; also needs ffmpeg)
+edge-tts>=6.1.0                # TTS (natural voice, needs internet)
+pyttsx3>=2.90                  # TTS offline fallback
+PyAudio>=0.2.14                # required by SpeechRecognition's Microphone()
+
+# LLM (Phase 3) — install whichever provider you're using.
+anthropic>=0.34.0
+# openai>=1.40.0

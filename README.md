@@ -6,10 +6,29 @@ dashboard to drive it all.
 
 ```
 ASTRO/
-├── my-large-data-vault/   # Original CLI pipelines (unchanged entry point: main.py)
-├── api/                   # FastAPI service exposing the pipelines to the UI
-└── frontend/              # React + Vite + TS dashboard
+├── my-large-data-vault/   # Vault pipelines + JARVIS assistant
+│   ├── main.py              # One-shot pipeline run (storage check, cleanup, media, weights)
+│   ├── jarvis.py             # Interactive assistant loop (listen -> act -> speak)
+│   └── src/utils/
+│       ├── tools.py          # Phase 1 — intent router / tool registry
+│       ├── llm.py            # Phase 3 — API-based inference w/ local fallback
+│       └── voice.py          # Phase 2 — STT/TTS, degrades to text if deps missing
+├── api/                   # FastAPI service exposing pipelines + assistant to the UI
+└── frontend/              # React + Vite + TS dashboard (Storage / Media / Weights / Chat)
 ```
+
+## JARVIS assistant
+
+- **Run in the terminal:** `python jarvis.py` from `my-large-data-vault/`. Works with zero extra
+  deps (typed input/printed output); install `requirements-jarvis.txt` for real voice.
+- **Run from the dashboard:** the Chat page hits `POST /api/chat`, which uses the same
+  `handle_intent()` / `ask_llm()` logic as the CLI loop — behavior is identical either way.
+- **Known commands** (keyword-matched, see `src/utils/tools.py`): "check disk space", "clean cache",
+  "transcode" / "generate proxies", "list proxies", "list weights", "zone report", "system stats",
+  "open dashboard". Anything else falls through to the configured LLM.
+- **LLM fallback:** set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in your environment. With neither
+  set, JARVIS reports what local weights exist (if any) rather than guessing — local inference isn't
+  wired to a model-specific loader yet.
 
 ## Running it
 
@@ -44,6 +63,11 @@ backend on port 8000, so both need to be running.
 - **Weights** — every `.safetensors` / `.pt` / `.bin` file in
   `00_raw_data/model_weights`, with per-tensor dtype/shape detail for
   `.safetensors` files (header-only, nothing loaded into RAM).
+
+## Notes on setup_jarvis.py
+
+Deprecated — it's a no-op now (see the docstring). It used to overwrite the vault's source files
+with an outdated snapshot; keep editing `my-large-data-vault/src/` directly instead.
 
 ## Notes
 
