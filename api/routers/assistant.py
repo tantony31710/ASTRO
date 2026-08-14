@@ -23,7 +23,17 @@ def status():
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str | None = None
+    text: str | None = None
+
+    @property
+    def prompt(self) -> str:
+        """Accepts either 'message' or 'text' — both are treated identically."""
+        if self.message is not None:
+            return self.message
+        if self.text is not None:
+            return self.text
+        return ""
 
 
 class ChatResponse(BaseModel):
@@ -39,7 +49,7 @@ def chat(req: ChatRequest):
     for anything else. Mirrors jarvis.py's run_once() so CLI and
     dashboard behave identically.
     """
-    intent = handle_intent(req.message)
+    intent = handle_intent(req.prompt)
     if intent["matched"]:
         return ChatResponse(reply=intent["result"], matched_tool=intent["tool"])
-    return ChatResponse(reply=ask_llm(req.message), matched_tool=None)
+    return ChatResponse(reply=ask_llm(req.prompt), matched_tool=None)

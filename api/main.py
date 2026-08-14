@@ -38,6 +38,9 @@ app.add_middleware(
 app.include_router(storage_router.router, prefix="/api/storage", tags=["storage"])
 app.include_router(media_router.router, prefix="/api/media", tags=["media"])
 app.include_router(models_router.router, prefix="/api/models", tags=["models"])
+
+# Alias: /api/models and /api/models/weights return the same weight inventory.
+app.get("/api/models", tags=["models"])(models_router.weights)
 app.include_router(assistant_router.router, prefix="/api", tags=["assistant"])
 
 
