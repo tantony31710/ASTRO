@@ -69,6 +69,69 @@ def _set_status(app, text: str, color: str) -> None:
     app.after(0, lambda: app.status_label.configure(text=text, text_color=color))
 
 
+# ---------------------------------------------------------------------------
+# Glowing pulse animation — a soft breathing glow on the status label (and
+# mic button) while listening or speaking. Implemented purely with
+# tkinter after() timers and text-color cycling, so it works on any Windows
+# machine with no extra packages.
+# ---------------------------------------------------------------------------
+_PULSE_COLORS = ("#00E676", "#00B359", "#009A4C", "#00B359")
+_PULSE_INTERVAL_MS = 320
+
+
+def _start_pulsing(app, text: str, color: str) -> None:
+    """Begin the breathing glow for the given status text and accent color."""
+    app._pulse_text = text
+    app._pulse_color = color
+    app._pulse_index = 0
+    _pulse_step(app)
+
+
+def _pulse_step(app) -> None:
+    color = _PULSE_COLORS[app._pulse_index % len(_PULSE_COLORS)]
+    app._pulse_index += 1
+    try:
+        app.status_label.configure(text=app._pulse_text, text_color=color)
+        if hasattr(app, "mic_btn"):
+            app.mic_btn.configure(fg_color=color)
+    except Exception:
+        pass
+    # Keep pulsing only while the widget still exists (app may have closed).
+    if getattr(app, "_pulsing", False):
+        app.after(_PULSE_INTERVAL_MS, lambda: _pulse_step(app))
+
+
+def _stop_pulsing(app, text: str, color: str) -> None:
+    app._pulsing = False
+    try:
+        app.status_label.configure(text=text, text_color=color)
+        if hasattr(app, "mic_btn"):
+            app.mic_btn.configure(fg_color="#1f538d")
+    except Exception:
+        pass
+
+
+def _start_speaking_pulse(app) -> None:
+    """A second accent color for the speaking state — amber breathing glow."""
+    _start_pulsing(app, "Status: Speaking...", "#FFB300")
+
+
+def _listen_with_retries(attempts: int = 2, extra_timeout: int = 4) -> str:
+    """STT with retry: Google's recognizer occasionally returns empty or
+    raises on the first attempt (ambient noise, mic warmup). A second pass
+    with a longer timeout usually recovers."""
+    last_error = None
+    for i in range(attempts):
+        try:
+            text = listen()
+            if text and text.strip():
+                return text
+        except Exception as e:
+            last_error = e
+        time.sleep(1.0)
+    return ""
+
+
 class AstroDesktopApp(ctk.CTk):
     """Main assistant window.
 
@@ -162,6 +225,7 @@ class AstroDesktopApp(ctk.CTk):
         self.mic_btn.pack(side="left")
 
         self.busy = False
+        self._pulsing = False
 
         # ---- wake-word background guard ------------------------------------
         self.wake_guard = None
@@ -190,10 +254,9 @@ class AstroDesktopApp(ctk.CTk):
         threading.Thread(target=self.listen_once, daemon=True).start()
 
     def listen_once(self) -> None:
-        _set_status(self, "Status: Listening...", "#00E676")
-        self.after(0, lambda: self.mic_btn.configure(fg_color="#00BFA5"))
+        _start_pulsing(self, "Status: Listening...", "#00E676")
         try:
-            text = listen()
+            text = _listen_with_retries()
             if text:
                 self.append_text(f"You (voice): {text}")
                 self.process(text)
@@ -202,8 +265,7 @@ class AstroDesktopApp(ctk.CTk):
         except Exception as e:
             self.append_text(f"[System] Couldn't hear audio clearly: {e}")
         finally:
-            _set_status(self, "Status: Ready", "gray")
-            self.after(0, lambda: self.mic_btn.configure(fg_color="#1f538d"))
+            _stop_pulsing(self, "Status: Ready", "gray")
 
     # ------------------------------------------------------------- processing
     def process(self, cmd: str) -> None:
@@ -217,8 +279,13 @@ class AstroDesktopApp(ctk.CTk):
         try:
             response = astro_respond(cmd)
             self.append_text(f"ASTRO: {response}")
-            # Speak the reply aloud (voice.py handles missing TTS deps)
-            threading.Thread(target=speak, args=(response,), daemon=True).start()
+            # Speak the reply aloud (voice.py handles missing TTS deps);
+            # the status glows amber while audio plays.
+            _start_speaking_pulse(self)
+            threading.Thread(target=lambda: (speak(response), self.after(0, lambda: None)), daemon=True).start()
+            # Stop the speaking glow a moment after the call returns. edge-tts
+            # is synchronous, so schedule the stop after the speak thread.
+            threading.Thread(target=self._delayed_stop_speaking, daemon=True).start()
         except Exception as e:
             self.append_text(f"[System] Error: {e}")
             traceback.print_exc()
@@ -244,9 +311,9 @@ class AstroDesktopApp(ctk.CTk):
     def wake_activation(self) -> None:
         """Called by the background guard when 'Jarvis' is heard."""
         self.after(0, lambda: self._activate_window())
-        _set_status(self, "Status: Wake word heard — listening...", "#00E676")
+        _start_pulsing(self, "Status: Wake word heard — listening...", "#00E676")
         try:
-            text = listen()
+            text = _listen_with_retries()
             if not text:
                 self.append_text("[System] Wake word heard, but no command — "
                                  "saying my name again works too.")
@@ -256,7 +323,12 @@ class AstroDesktopApp(ctk.CTk):
         except Exception as e:
             self.append_text(f"[System] Couldn't hear audio clearly: {e}")
         finally:
-            _set_status(self, "Status: Ready", "gray")
+            _stop_pulsing(self, "Status: Ready", "gray")
+
+    def _delayed_stop_speaking(self) -> None:
+        """Let the spoken reply finish, then return the status to Ready."""
+        time.sleep(1.5)  # generous buffer; glow is cosmetic
+        _stop_pulsing(self, "Status: Ready", "gray")
 
     def _activate_window(self) -> None:
         try:
