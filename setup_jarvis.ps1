@@ -34,7 +34,7 @@ pip install -q -r requirements.txt
 Ok "core requirements installed"
 
 Step "Installing JARVIS assistant dependencies (voice, TTS, dotenv, tray)"
-pip install -q -r my-large-data-vault/requirements-jarvis.txt
+pip install -q -r my_large_data_vault/requirements-jarvis.txt
 Ok "jarvis requirements installed"
 
 Step "Installing local-inference and tray extras"
@@ -42,9 +42,9 @@ pip install -q llama-cpp-python pystray Pillow uvicorn fastapi
 Ok "extras installed"
 
 Step "Seeding .env"
-$envFile = "my-large-data-vault/.env"
+$envFile = "my_large_data_vault/.env"
 if (-not (Test-Path $envFile)) {
-    Copy-Item "my-large-data-vault/.env.example" $envFile
+    Copy-Item "my_large_data_vault/.env.example" $envFile
     Ok ".env created from .env.example — EDIT IT NOW:"
     Write-Host "    notepad $envFile" -ForegroundColor White
 } else {
@@ -53,10 +53,10 @@ if (-not (Test-Path $envFile)) {
 
 Step "Running the voice stack smoke test"
 try {
-    & python my-large-data-vault/test_voice_stack.py
+    & python my_large_data_vault/test_voice_stack.py
 } catch {
     Warn "smoke test could not run automatically — run it manually:"
-    Write-Host "    python my-large-data-vault\test_voice_stack.py" -ForegroundColor White
+    Write-Host "    python my_large_data_vault\test_voice_stack.py" -ForegroundColor White
 }
 
 Step "Windows startup shortcut (boot-time JARVIS)"
@@ -67,7 +67,7 @@ if ($answer -match "^y") {
     $shortcut = $shell.CreateShortcut("$startup\JARVIS.lnk")
     $shortcut.TargetPath = (Get-Command pythonw).Source
     $repoRoot = (Get-Location).Path
-    $shortcut.Arguments = """$repoRoot\my-large-data-vault\tray_jarvis.pyw"""
+    $shortcut.Arguments = """$repoRoot\my_large_data_vault\tray_jarvis.pyw"""
     $shortcut.WorkingDirectory = $repoRoot
     $shortcut.Description = "JARVIS — ASTRO Vault tray app"
     $shortcut.Save()
@@ -77,7 +77,7 @@ if ($answer -match "^y") {
 Step "Done"
 Write-Host "
 Next steps:
-  1. Edit my-large-data-vault\.env  (Llama-3 model path + API keys)
-  2. pythonw my-large-data-vault\tray_jarvis.pyw   <- tray app, always on
+  1. Edit my_large_data_vault\.env  (Llama-3 model path + API keys)
+  2. pythonw my_large_data_vault\tray_jarvis.pyw   <- tray app, always on
   3. JARVIS_MODE=wake python jarvis.py             <- wake-word mode in terminal
 " -ForegroundColor Green

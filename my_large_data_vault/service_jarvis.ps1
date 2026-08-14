@@ -16,7 +16,13 @@
 param([ValidateSet("install", "status", "uninstall")]$Action = "install")
 
 $repoRoot = (Get-Location).Path
-$scriptPath = Join-Path $repoRoot "my-large-data-vault\tray_jarvis.pyw"
+# Resolve the vault folder regardless of its name (underscore = current,
+# hyphen = legacy) so a repo rename never breaks the service registration.
+$vaultFolder = "my_large_data_vault"
+if (-not (Test-Path (Join-Path $repoRoot $vaultFolder))) {
+    $vaultFolder = "my-large-data-vault"
+}
+$scriptPath = Join-Path $repoRoot "$vaultFolder\tray_jarvis.pyw"
 $serviceName = "JARVIS"
 
 $pythonw = (Get-Command pythonw -ErrorAction SilentlyContinue).Source

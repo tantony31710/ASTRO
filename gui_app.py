@@ -28,15 +28,22 @@ ctk.set_default_color_theme("blue")
 # Make the vault importable when launched from anywhere (e.g. Desktop
 # shortcut, service, startup folder).
 # ---------------------------------------------------------------------------
-VAULT = (Path(__file__).resolve().parent / "my-large-data-vault").as_posix()
-if not Path(VAULT).is_dir():
+VAULT_CANDIDATES = [
+    (Path(__file__).resolve().parent / "my_large_data_vault").as_posix(),  # current name
+    (Path(__file__).resolve().parent / "my-large-data-vault").as_posix(),  # legacy name
+]
+VAULT = next((v for v in VAULT_CANDIDATES if Path(v).is_dir()), "")
+if not VAULT:
     # Fallback: search up to three directory levels for the vault folder.
     # Useful when a shortcut or service points at a copy of gui_app.py.
     probe = Path(__file__).resolve().parent
     for _ in range(3):
         probe = probe.parent
-        if (probe / "my-large-data-vault").is_dir():
-            VAULT = (probe / "my-large-data-vault").as_posix()
+        for cand in ("my_large_data_vault", "my-large-data-vault"):
+            if (probe / cand).is_dir():
+                VAULT = (probe / cand).as_posix()
+                break
+        if VAULT:
             break
 for _p in (VAULT, str(Path(VAULT).parent)):
     if _p not in sys.path:
