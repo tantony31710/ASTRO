@@ -172,8 +172,23 @@ def detect_wake_word(
 
     recognizer = sr.Recognizer()
     deadline = time.time() + timeout
+    # The mic can be temporarily busy right after a previous STT session
+    # (Windows holds it for a moment). Retry opening a few times before
+    # giving up — a fresh process is unaffected, but the ambient guard
+    # calls this in a loop next to other listeners.
+    source = None
+    for attempt in range(3):
+        try:
+            source = sr.Microphone()
+            break
+        except Exception:
+            time.sleep(1.0)
+    if source is None:
+        print(f"[WAKE] mic still unavailable, falling back to typed input.")
+        hit = input(f"[WAKE] type '{keyword}' to wake > ")
+        return any(p.search(hit or "") for p in patterns)
     try:
-        with sr.Microphone() as source:
+        with source:
             recognizer.adjust_for_ambient_noise(source, duration=0.4)
             while time.time() < deadline:
                 remaining = max(0.5, deadline - time.time())

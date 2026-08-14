@@ -29,13 +29,29 @@ ctk.set_default_color_theme("blue")
 # shortcut, service, startup folder).
 # ---------------------------------------------------------------------------
 VAULT = (Path(__file__).resolve().parent / "my-large-data-vault").as_posix()
+if not Path(VAULT).is_dir():
+    # Fallback: search up to three directory levels for the vault folder.
+    # Useful when the shortcut or service points at a copy of gui_app.py.
+    probe = Path(__file__).resolve().parent
+    for _ in range(3):
+        probe = probe.parent
+        if (probe / "my-large-data-vault").is_dir():
+            VAULT = (probe / "my-large-data-vault").as_posix()
+            break
 for _p in (VAULT, str(Path(VAULT).parent)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
-
-from jarvis import run_once as astro_respond  # noqa: E402
+try:
+    from src.utils.voice import detect_wake_word, listen, speak  # noqa: E402
+    from jarvis import run_once as astro_respond  # noqa: E402
+except ImportError:
+    raise RuntimeError(
+        "ASTRO desktop app: cannot find the vault modules. "
+        "Make sure gui_app.py lives in the ASTRO repo root next to the "
+        f"my-large-data-vault/ folder (looked at: {VAULT}). "
+        "If you copied gui_app.py elsewhere, copy the whole repo instead."
+    )
 
 import dotenv  # noqa: E402
 dotenv.load_dotenv(Path(VAULT) / ".env", override=False)
